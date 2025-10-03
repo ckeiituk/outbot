@@ -69,10 +69,5 @@ GOOGLE_SHEET_URL = os.getenv(
     "https://docs.google.com/spreadsheets/d/1JjNffnZHc-D8KdnLAdT09LTvoBJUVtX4ao9Wc-NM_6A",
 )
 
-DATABASE_CONFIG = {
-    "user": os.getenv("DB_USER", ""),
-    "password": os.getenv("DB_PASSWORD", ""),
-    "database": os.getenv("DB_NAME", ""),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432"),
-}
+# Database settings were previously read from environment variables but are not
+# used anywhere in the current codebase. Removed to avoid confusion.
