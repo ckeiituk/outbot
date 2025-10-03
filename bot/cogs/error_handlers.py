@@ -50,9 +50,9 @@ class ErrorHandlerCog(commands.Cog):
         print(error_message)
         await notify_admin(self.bot, error_message)
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("You don't have permission to use this command.")
+            await ctx.send("У вас нет прав на выполнение этой команды.")
         else:
-            await ctx.send("An error occurred while processing the command.")
+            await ctx.send("Произошла ошибка при выполнении команды.")
 
     @commands.Cog.listener()
     async def on_error(self, event_method, *args, **kwargs) -> None:  # type: ignore[override]

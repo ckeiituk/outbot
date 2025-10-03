@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import notify_admin
+from config import GUILD_ID
 
 
 class TrackingCog(commands.Cog):
@@ -86,6 +87,7 @@ class TrackingCog(commands.Cog):
             app_commands.Choice(name="off (выключить)", value="off"),
         ]
     )
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def track_cmd(
         self,
         interaction: discord.Interaction,

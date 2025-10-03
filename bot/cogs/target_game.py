@@ -19,13 +19,13 @@ class TargetGameCog(commands.Cog):
     @commands.command(name="target", help="Start a target game where users can join by typing +")
     async def target(self, ctx: commands.Context) -> None:
         if self.target_game_active:
-            await ctx.send("A target game is already running!")
+            await ctx.send("Игра уже запущена.")
             return
 
         self.target_participants = set()
         self.target_game_active = True
         self.target_game_event.clear()
-        await ctx.send("Type + to join the target game! You have 15 seconds.")
+        await ctx.send("Напишите +, чтобы участвовать (15 секунд).")
 
         def check(message: discord.Message) -> bool:
             return message.content == "+" and message.channel == ctx.channel
@@ -55,9 +55,9 @@ class TargetGameCog(commands.Cog):
 
             if self.target_participants:
                 winner = random.choice(list(self.target_participants))
-                await ctx.send(f"The winner is {winner.mention}!")
+                await ctx.send(f"Победитель: {winner.mention}!")
             else:
-                await ctx.send("No participants.")
+                await ctx.send("Участников не было.")
         finally:
             self.target_game_active = False
 
@@ -65,12 +65,12 @@ class TargetGameCog(commands.Cog):
     async def go(self, ctx: commands.Context) -> None:
         if self.target_game_active:
             self.target_game_event.set()
-            await ctx.send("Ending the target game early!")
+            await ctx.send("Останавливаю игру досрочно!")
             if self.target_participants:
                 winner = random.choice(list(self.target_participants))
-                await ctx.send(f"The winner is {winner.mention}!")
+                await ctx.send(f"Победитель: {winner.mention}!")
             else:
-                await ctx.send("No participants.")
+                await ctx.send("Участников не было.")
             self.target_game_active = False
         else:
-            await ctx.send("No target game is running.")
+            await ctx.send("Игра сейчас не запущена.")

@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import notify_admin
+from config import GUILD_ID
 
 
 class BoostersCog(commands.Cog):
@@ -17,6 +18,17 @@ class BoostersCog(commands.Cog):
         self.bot = bot
         self.invites: Dict[int, List[discord.Invite]] = {}
         self.auto_report_boosters: bool = True
+
+    def _has_moderator_privileges(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.bot.settings.admin_user_id:
+            return True
+        role_name = (self.bot.settings.moderator_role or "").strip()
+        if not role_name:
+            return False
+        if not isinstance(interaction.user, discord.Member):
+            return False
+        role = discord.utils.get(interaction.user.roles, name=role_name)
+        return role is not None
 
     async def _refresh_invites(self, guild: discord.Guild) -> None:
         try:
@@ -37,7 +49,7 @@ class BoostersCog(commands.Cog):
         channel_id = self.bot.settings.boost_report_channel_id
         channel = self.bot.get_channel(channel_id)
         if isinstance(channel, discord.TextChannel):
-            await channel.send(f"{member.display_name} has stopped boosting the server.")
+            await channel.send(f"{member.display_name} больше не бустит сервер.")
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -54,7 +66,7 @@ class BoostersCog(commands.Cog):
                     if new_invite.code == self.bot.settings.invite_code_for_bot_booster:
                         role = discord.utils.get(member.guild.roles, name=self.bot.settings.role_bot_booster)
                         if role:
-                            await member.add_roles(role, reason="Used special bot booster invite")
+                            await member.add_roles(role, reason="Использовал приглашение для бустеров")
                             channel = self.bot.get_channel(self.bot.settings.boost_report_channel_id)
                             if isinstance(channel, discord.TextChannel):
                                 now = discord.utils.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -81,17 +93,12 @@ class BoostersCog(commands.Cog):
 
             if booster_role in before.roles and booster_role not in after.roles:
                 if bot_booster_role in after.roles:
-                    await channel.send(f"{after.display_name} has stopped boosting the server.")
+                    await channel.send(f"{after.display_name} больше не бустит сервер.")
         except Exception:
             await notify_admin(
                 self.bot,
                 f"Error in on_member_update:\n{traceback.format_exc()}",
             )
-
-    def _ensure_admin(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.bot.settings.admin_user_id:
-            return False
-        return True
 
     def _get_report_channel(self) -> Optional[discord.TextChannel]:
         channel = self.bot.get_channel(self.bot.settings.boost_report_channel_id)
@@ -101,10 +108,11 @@ class BoostersCog(commands.Cog):
         name="kick_expired_boosters",
         description="Удалить из гильдии пользователей с 'Бот Бустер', которые больше не бустят",
     )
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def kick_expired_boosters(self, interaction: discord.Interaction) -> None:
-        if not self._ensure_admin(interaction):
+        if not self._has_moderator_privileges(interaction):
             await interaction.response.send_message(
-                "You do not have permission to use this command!", ephemeral=True
+                "Недостаточно прав для выполнения команды.", ephemeral=True
             )
             return
         try:
@@ -117,7 +125,7 @@ class BoostersCog(commands.Cog):
             bot_booster_role = discord.utils.get(guild.roles, name=self.bot.settings.role_bot_booster)
             if not bot_booster_role:
                 await interaction.response.send_message(
-                    f"Role '{self.bot.settings.role_bot_booster}' not found", ephemeral=True
+                    f"Роль '{self.bot.settings.role_bot_booster}' не найдена.", ephemeral=True
                 )
                 return
 
@@ -125,7 +133,7 @@ class BoostersCog(commands.Cog):
             for member in list(bot_booster_role.members):
                 if not booster_role or booster_role not in member.roles:
                     try:
-                        await guild.kick(member, reason="No longer boosting the server")
+                        await guild.kick(member, reason="Больше не бустит сервер")
                         kicked_users.append(member.display_name)
                     except Exception as exc:
                         await notify_admin(
@@ -134,33 +142,34 @@ class BoostersCog(commands.Cog):
                         )
 
             message = (
-                "Kicked for expired boosts: " + ", ".join(kicked_users)
-            ) if kicked_users else "No users kicked. All boosters are up to date."
+                "Удалены за прекращение буста: " + ", ".join(kicked_users)
+            ) if kicked_users else "Удалений нет: все бустеры актуальны."
 
             channel = self._get_report_channel()
             if channel:
                 await channel.send(message)
                 await interaction.response.send_message(
-                    f"Kick report sent to the channel <#{channel.id}>.", ephemeral=True
+                    f"Отчёт об удалении отправлен в канал <#{channel.id}>.", ephemeral=True
                 )
             else:
-                await interaction.response.send_message("Report channel not found!", ephemeral=True)
+                await interaction.response.send_message("Канал для отчётов не найден.", ephemeral=True)
         except Exception:
             await notify_admin(
                 self.bot,
                 f"Error in /kick_expired_boosters:\n{traceback.format_exc()}",
             )
             if not interaction.response.is_done():
-                await interaction.response.send_message("An error occurred.", ephemeral=True)
+                await interaction.response.send_message("Произошла ошибка при удалении.", ephemeral=True)
 
     @app_commands.command(
         name="report_expired_boosters",
         description="Список пользователей с 'Бот Бустер', которые больше не бустят",
     )
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def report_expired_boosters(self, interaction: discord.Interaction) -> None:
-        if not self._ensure_admin(interaction):
+        if not self._has_moderator_privileges(interaction):
             await interaction.response.send_message(
-                "You do not have permission to use this command!", ephemeral=True
+                "Недостаточно прав для выполнения команды.", ephemeral=True
             )
             return
         try:
@@ -171,48 +180,49 @@ class BoostersCog(commands.Cog):
 
             channel = self._get_report_channel()
             if not channel:
-                await interaction.response.send_message("Report channel not found!", ephemeral=True)
+                await interaction.response.send_message("Канал для отчётов не найден.", ephemeral=True)
                 return
 
             booster_role = discord.utils.get(guild.roles, name=self.bot.settings.role_server_booster)
             bot_booster_role = discord.utils.get(guild.roles, name=self.bot.settings.role_bot_booster)
             if not bot_booster_role:
                 await interaction.response.send_message(
-                    f"Role '{self.bot.settings.role_bot_booster}' not found", ephemeral=True
+                    f"Роль '{self.bot.settings.role_bot_booster}' не найдена.", ephemeral=True
                 )
                 return
 
-            lines = ["Users potentially no longer boosting the server:"]
+            lines = ["Пользователи, которые, возможно, перестали бустить сервер:"]
             for member in bot_booster_role.members:
                 if not booster_role or booster_role not in member.roles:
                     lines.append(member.display_name)
 
             message = "\n".join(lines)
             if len(message) > 2000:
-                message = "Message too long to send."
+                message = "Сообщение слишком длинное для отправки."
 
             await channel.send(message)
-            await interaction.response.send_message("Report sent to the channel.", ephemeral=True)
+            await interaction.response.send_message("Отчёт отправлен в канал.", ephemeral=True)
         except Exception:
             await notify_admin(
                 self.bot,
                 f"Error in /report_expired_boosters:\n{traceback.format_exc()}",
             )
             if not interaction.response.is_done():
-                await interaction.response.send_message("An error occurred.", ephemeral=True)
+                await interaction.response.send_message("Произошла ошибка при формировании отчёта.", ephemeral=True)
 
     @app_commands.command(name="toggle_auto_report", description="Включить/выключить авто-репорты бустеров")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def toggle_auto_report(self, interaction: discord.Interaction) -> None:
-        if not self._ensure_admin(interaction):
+        if not self._has_moderator_privileges(interaction):
             await interaction.response.send_message(
-                "You do not have permission to use this command!", ephemeral=True
+                "Недостаточно прав для выполнения команды.", ephemeral=True
             )
             return
         try:
             self.auto_report_boosters = not self.auto_report_boosters
-            state = "enabled" if self.auto_report_boosters else "disabled"
+            state = "включена" if self.auto_report_boosters else "выключена"
             await interaction.response.send_message(
-                f"Automatic reporting of boosters is now {state}.", ephemeral=True
+                f"Автоматическая отправка отчётов теперь {state}.", ephemeral=True
             )
         except Exception:
             await notify_admin(
@@ -221,6 +231,6 @@ class BoostersCog(commands.Cog):
             )
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "An error occurred while toggling auto report.",
+                    "Произошла ошибка при переключении автопроверки.",
                     ephemeral=True,
                 )

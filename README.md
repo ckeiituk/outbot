@@ -35,7 +35,7 @@ A modular Discord assistant tailored for community management. The bot handles b
      ```bash
      cp .env.example .env
      ```
-   - Fill in the Discord token, admin ID, guild/channel IDs, and optional database credentials.
+   - Fill in the Discord token, admin ID, guild/channel IDs, и при необходимости имя роли модераторов (`MODERATOR_ROLE`).
 
 ## Running the Bot
 ```bash

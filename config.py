@@ -63,6 +63,7 @@ INVITE_CODE_FOR_BOT_BOOSTER = os.getenv("INVITE_CODE_FOR_BOT_BOOSTER", "Q9EesfD7
 ROLE_BOT_BOOSTER = os.getenv("ROLE_BOT_BOOSTER", "Бот Бустер")
 ROLE_SERVER_BOOSTER = os.getenv("ROLE_SERVER_BOOSTER", "Server Booster")
 ROLE_MOVIES = os.getenv("ROLE_MOVIES", "Кино")
+MODERATOR_ROLE = os.getenv("MODERATOR_ROLE", "")
 GOOGLE_SHEET_URL = os.getenv(
     "GOOGLE_SHEET_URL",
     "https://docs.google.com/spreadsheets/d/1JjNffnZHc-D8KdnLAdT09LTvoBJUVtX4ao9Wc-NM_6A",

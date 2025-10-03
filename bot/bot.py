@@ -16,6 +16,7 @@ from config import (
     ROLE_BOT_BOOSTER,
     ROLE_MOVIES,
     ROLE_SERVER_BOOSTER,
+    MODERATOR_ROLE,
     TRACK_USER_ID,
     GOOGLE_SHEET_URL,
 )
@@ -31,6 +32,7 @@ class BotSettings:
     role_bot_booster: str
     role_server_booster: str
     role_movies: str
+    moderator_role: str
     google_sheet_url: str
 
 
@@ -54,6 +56,7 @@ class OutBot(commands.Bot):
             role_bot_booster=ROLE_BOT_BOOSTER,
             role_server_booster=ROLE_SERVER_BOOSTER,
             role_movies=ROLE_MOVIES,
+            moderator_role=MODERATOR_ROLE,
             google_sheet_url=GOOGLE_SHEET_URL,
         )
 

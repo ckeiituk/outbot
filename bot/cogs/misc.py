@@ -12,6 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import notify_admin
+from config import GUILD_ID
 
 
 class MiscCog(commands.Cog):
@@ -24,6 +25,7 @@ class MiscCog(commands.Cog):
         return interaction.user.id == self.bot.settings.admin_user_id
 
     @app_commands.command(name="фильмы", description="Ссылка на таблицу с фильмами (видно только вам)")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def films(self, interaction: discord.Interaction) -> None:
         try:
             if not isinstance(interaction.user, discord.Member):
@@ -50,6 +52,7 @@ class MiscCog(commands.Cog):
                 await interaction.response.send_message("Ошибка при обработке команды.", ephemeral=True)
 
     @app_commands.command(name="invite", description="Получить пригласительную ссылку")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def invite(self, interaction: discord.Interaction) -> None:
         try:
             await interaction.response.send_message(
@@ -63,25 +66,27 @@ class MiscCog(commands.Cog):
                 await interaction.response.send_message("Ошибка при обработке команды.", ephemeral=True)
 
     @app_commands.command(name="sync", description="Глобально синхронизировать слэш-команды и показать список")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def sync_commands(self, interaction: discord.Interaction) -> None:
         if not self._is_admin(interaction):
             await interaction.response.send_message(
-                "You must be the owner to use this command!", ephemeral=True
+                "Команда доступна только администратору.", ephemeral=True
             )
             return
         try:
-            await interaction.response.send_message("Syncing commands globally…", ephemeral=True)
+            await interaction.response.send_message("Синхронизирую слэш-команды…", ephemeral=True)
             synced = await self.bot.tree.sync()
             names = [f"/{cmd.name}" for cmd in synced]
-            txt = ", ".join(names) if names else "— (нет команд)"
-            await interaction.followup.send(txt, ephemeral=True)
+            txt = ", ".join(names) if names else "— команд нет"
+            await interaction.followup.send(f"Готово: {txt}", ephemeral=True)
         except Exception as exc:
             await notify_admin(self.bot, f"Error in /sync: {exc}\n{traceback.format_exc()}")
             if not interaction.response.is_done():
-                await interaction.response.send_message("Ошибка при синхронизации.", ephemeral=True)
+                await interaction.response.send_message("Ошибка при синхронизации команд.", ephemeral=True)
 
     @app_commands.command(name="tmdb", description="Отправить 4 локальных PNG-изображения пользователю в ЛС")
     @app_commands.describe(user="Кому отправить изображения")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def tmdb(self, interaction: discord.Interaction, user: discord.User) -> None:
         image_dir = Path("images")
         image_paths = list(image_dir.glob("*.png"))[:4]
@@ -108,25 +113,26 @@ class MiscCog(commands.Cog):
         except Exception as exc:
             await notify_admin(self.bot, f"Error in /tmdb: {exc}\n{traceback.format_exc()}")
             if not interaction.response.is_done():
-                await interaction.response.send_message("An error occurred while sending images.", ephemeral=True)
+                await interaction.response.send_message("Произошла ошибка при отправке изображений.", ephemeral=True)
 
     @app_commands.command(name="roll", description="Случайное число")
     @app_commands.describe(start="Начало интервала", end="Конец интервала")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def roll(self, interaction: discord.Interaction, start: int = 1, end: int = 100) -> None:
         try:
             if start > end:
                 await interaction.response.send_message(
-                    "Invalid interval! Start should be less than or equal to end.",
+                    "Некорректный интервал: начало должно быть меньше либо равно концу.",
                     ephemeral=True,
                 )
                 return
             result = random.randint(start, end)
-            await interaction.response.send_message(f"🎲 You rolled a {result}!")
+            await interaction.response.send_message(f"🎲 Выпавшее число: {result}")
         except Exception as exc:
             await notify_admin(self.bot, f"Error in /roll: {exc}\n{traceback.format_exc()}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "An error occurred while rolling the number.", ephemeral=True
+                    "Произошла ошибка при получении случайного числа.", ephemeral=True
                 )
 
     @app_commands.command(name="status", description="Изменить статус бота и активность")
@@ -149,6 +155,7 @@ class MiscCog(commands.Cog):
             app_commands.Choice(name="Соревнуется", value="competing"),
         ],
     )
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def set_status(
         self,
         interaction: discord.Interaction,
@@ -198,3 +205,41 @@ class MiscCog(commands.Cog):
                     await interaction.response.send_message(msg, ephemeral=True)
             except Exception:
                 pass
+
+    @app_commands.command(name="ping", description="Проверка отклика бота")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def ping(self, interaction: discord.Interaction) -> None:
+        try:
+            latency_ms = round(self.bot.latency * 1000)
+            guild = interaction.guild
+            voice_info = "не подключён к голосу"
+            if guild:
+                vc = guild.voice_client
+                if vc and vc.is_connected():
+                    state = []
+                    if getattr(vc, "channel", None):
+                        state.append(f"канал: {vc.channel.name}")
+                    if vc.is_playing():
+                        state.append("проигрывает аудио")
+                    else:
+                        state.append("поток не идёт")
+                    me = guild.me
+                    if me and me.voice:
+                        markers = []
+                        if getattr(me.voice, "self_mute", False):
+                            markers.append("мьючен")
+                        if getattr(me.voice, "self_deaf", False):
+                            markers.append("деафнут")
+                        if markers:
+                            state.append(", ".join(markers))
+                    voice_info = "; ".join(state)
+            await interaction.response.send_message(
+                f"🏓 Пинг: {latency_ms} мс\n🎧 Голос: {voice_info}",
+                ephemeral=True,
+            )
+        except Exception as exc:
+            await notify_admin(self.bot, f"Error in /ping: {exc}\n{traceback.format_exc()}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "Не удалось получить информацию о пинге.", ephemeral=True
+                )

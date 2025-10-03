@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import notify_admin
+from config import GUILD_ID
 
 
 def _to_base36(n: int) -> str:
@@ -146,6 +147,7 @@ class DmRelayCog(commands.Cog):
         text="Текст сообщения",
         attachment="Необязательное вложение (1 файл)",
     )
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def dm_send(
         self,
         interaction: discord.Interaction,
