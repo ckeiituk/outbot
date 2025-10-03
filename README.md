@@ -18,7 +18,7 @@ A modular Discord assistant tailored for community management. The bot handles b
 ## Getting Started
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/ckeiituk/outbot.git
    cd outbot
    ```
 2. **Create a virtual environment (optional, but recommended)**
@@ -72,14 +72,8 @@ config.py          # Environment-driven configuration loader
 .env.example       # Template for required environment variables
 ```
 
-## Publishing to GitHub
-1. Create an empty repository on GitHub (or any git hosting provider).
-2. Add it as a remote and push the history:
-   ```bash
-   git remote add origin git@github.com:<user>/<repo>.git
-   git push -u origin master
-   ```
-3. Update the remote URL later with `git remote set-url origin <new-url>` if needed.
+## Repository
+- GitHub: https://github.com/ckeiituk/outbot (public)
 
 ## Contributing
 - Use separate branches for features/fixes.
