@@ -9,22 +9,19 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import bot_token2
+from config import (
+    BOT_TOKEN,
+    ADMIN_USER_ID,
+    BOOST_REPORT_CHANNEL_ID,
+    GUILD_ID,
+    GOOGLE_SHEET_URL,
+    INVITE_CODE_FOR_BOT_BOOSTER,
+    ROLE_BOT_BOOSTER,
+    ROLE_MOVIES,
+    ROLE_SERVER_BOOSTER,
+    TRACK_USER_ID,
+)
 from aiohttp.client_exceptions import ClientConnectionResetError
-
-# ==== CONFIG ====
-ADMIN_USER_ID = 233981175956242433
-GUILD_ID = 233981443766878208
-BOOST_REPORT_CHANNEL_ID = 1252628666639450236
-INVITE_CODE_FOR_BOT_BOOSTER = "Q9EesfD7Gs"
-ROLE_BOT_BOOSTER = "Бот Бустер"
-ROLE_SERVER_BOOSTER = "Server Booster"
-ROLE_MOVIES = "Кино"
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1JjNffnZHc-D8KdnLAdT09LTvoBJUVtX4ao9Wc-NM_6A"
-
-# Трекинг конкретного пользователя
-TRACK_USER_ID = 233981175956242433
-# ==============
 
 intents = discord.Intents.default()
 intents.members = True
@@ -34,6 +31,7 @@ intents.voice_states = True
 intents.presences = True                # нужно для on_presence_update
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+commands_synced = False
 
 # ====== STATE ======
 auto_report_boosters = True
@@ -42,7 +40,6 @@ sticky_voice_channels = {}  # guild_id -> voice_channel_id
 
 # target game
 target_participants = set()
-target_task = None
 target_game_active = False
 target_game_event = asyncio.Event()
 
@@ -82,6 +79,9 @@ async def notify_admin(error_message: str):
 def has_role(role_name: str):
     """Проверка роли для слэш-команд."""
     def predicate(interaction: discord.Interaction):
+        if not isinstance(interaction.user, discord.Member):
+            raise app_commands.CheckFailure("Команда доступна только на сервере.")
+
         role = discord.utils.get(interaction.user.roles, name=role_name)
         if role is None:
             raise app_commands.CheckFailure(f"Нужна роль: {role_name}")
@@ -256,7 +256,18 @@ async def dm_admin() -> Optional[discord.User]:
 # ====== EVENTS ======
 @bot.event
 async def on_ready():
+    global commands_synced
     print(f"Logged in as {bot.user} (id: {bot.user.id})")
+    if not commands_synced:
+        try:
+            guild_object = discord.Object(id=GUILD_ID)
+            synced = await bot.tree.sync(guild=guild_object)
+            commands_synced = True
+            print(f"Synced {len(synced)} application commands for guild {GUILD_ID}.")
+        except Exception:
+            await notify_admin(
+                f"Failed to sync app commands for guild {GUILD_ID}:\n{traceback.format_exc()}"
+            )
     # заполняем кэш инвайтов
     for guild in bot.guilds:
         try:
@@ -352,31 +363,44 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 
             ok_perms, reason = can_connect(guild, target_channel)
             if not ok_perms:
-                # нет смысла жечь попытку: подождём следующего апдейта
+                reconnect_attempts[guild.id] = attempts + 1
+                # нет смысла жечь попытку дальше: подождём следующего апдейта
                 return
 
+            next_attempt = attempts + 1
             vc = guild.voice_client
+            success = False
             try:
                 if vc and vc.is_connected():
-                    if vc.channel and vc.channel.id != target_channel.id:
+                    if vc.channel and vc.channel.id == target_channel.id:
+                        success = True
+                    elif vc.channel:
                         await vc.move_to(target_channel)
-                        reconnect_attempts[guild.id] = 0
-                        await ensure_self_mute(guild)
-                        await ensure_silence_playing(guild.voice_client)
-                else:
+                        success = True
+                if not success:
                     ok = await safe_connect(target_channel, "Auto-reconnect", guild.id)
-                    if not ok:
-                        return
+                    success = ok
+
+                if success:
+                    reconnect_attempts[guild.id] = 0
+                    await ensure_self_mute(guild)
                     await ensure_silence_playing(guild.voice_client)
+                else:
+                    reconnect_attempts[guild.id] = next_attempt
+                    return
             except IndexError:
+                reconnect_attempts[guild.id] = next_attempt
                 sticky_voice_channels.pop(guild.id, None)
                 await notify_admin(
                     f"Auto-reconnect IndexError in guild {guild.id}. Sticky disabled.\n{traceback.format_exc()}"
                 )
+                return
             except Exception:
+                reconnect_attempts[guild.id] = next_attempt
                 await notify_admin(
                     f"Auto-reconnect unexpected error in guild {guild.id}:\n{traceback.format_exc()}"
                 )
+                return
 
         # NOTE: ветку "else: ensure_self_mute" намеренно убрали — мьютим только при move/connect.
     except Exception:
@@ -794,7 +818,7 @@ async def stop_nakrutka(interaction: discord.Interaction):
 
 @bot.command(name="target", help="Start a target game where users can join by typing +")
 async def target(ctx: commands.Context):
-    global target_participants, target_task, target_game_active, target_game_event
+    global target_participants, target_game_active, target_game_event
 
     if target_game_active:
         await ctx.send("A target game is already running!")
@@ -805,40 +829,41 @@ async def target(ctx: commands.Context):
     target_game_event.clear()
     await ctx.send("Type + to join the target game! You have 15 seconds.")
 
-    def check(message: discord.Message):
+    def check(message: discord.Message) -> bool:
         return message.content == "+" and message.channel == ctx.channel
 
-    async def collect_participants():
+    async def collect_participants() -> None:
         try:
-            while True:
-                done, _pending = await asyncio.wait(
-                    [bot.wait_for("message", check=check, timeout=15), target_game_event.wait()],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-                if target_game_event.is_set():
+            loop = asyncio.get_running_loop()
+            end_time = loop.time() + 15
+            while not target_game_event.is_set():
+                timeout = end_time - loop.time()
+                if timeout <= 0:
                     break
-                for t in done:
-                    message = t.result()
+                try:
+                    message = await asyncio.wait_for(bot.wait_for("message", check=check), timeout=timeout)
+                except asyncio.TimeoutError:
+                    break
+                else:
                     target_participants.add(message.author)
-        except asyncio.TimeoutError:
-            pass
         finally:
             target_game_event.set()
 
-    await collect_participants()
+    try:
+        await collect_participants()
 
-    if target_participants:
-        winner = random.choice(list(target_participants))
-        await ctx.send(f"The winner is {winner.mention}!")
-    else:
-        await ctx.send("No participants.")
-
-    target_game_active = False
+        if target_participants:
+            winner = random.choice(list(target_participants))
+            await ctx.send(f"The winner is {winner.mention}!")
+        else:
+            await ctx.send("No participants.")
+    finally:
+        target_game_active = False
 
 
 @bot.command(name="go", help="End the target game early and choose a winner")
 async def go(ctx: commands.Context):
-    global target_task, target_game_active, target_game_event
+    global target_game_active, target_game_event
 
     if target_game_active:
         target_game_event.set()
@@ -1077,4 +1102,4 @@ async def on_error(event_method, *args, **kwargs):
 
 
 if __name__ == "__main__":
-    bot.run(bot_token2)
+    bot.run(BOT_TOKEN)
