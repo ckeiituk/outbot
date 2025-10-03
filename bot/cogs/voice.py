@@ -12,7 +12,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import notify_admin
-from config import GUILD_ID
 
 
 class _OpusSilence(discord.AudioSource):
@@ -177,7 +176,6 @@ class VoiceCog(commands.Cog):
                 return
 
     @app_commands.command(name="накрутка", description="Бот зайдёт в ваш голосовой канал и будет там находиться (серый микрофон)")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def nakrutka(self, interaction: discord.Interaction) -> None:
         try:
             if not interaction.guild:
@@ -268,7 +266,6 @@ class VoiceCog(commands.Cog):
                 )
 
     @app_commands.command(name="стопнакрутка", description="Отключить 'прилипание' и выйти из голосового канала")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def stop_nakrutka(self, interaction: discord.Interaction) -> None:
         try:
             if not interaction.guild:

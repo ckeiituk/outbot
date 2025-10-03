@@ -68,6 +68,3 @@ GOOGLE_SHEET_URL = os.getenv(
     "GOOGLE_SHEET_URL",
     "https://docs.google.com/spreadsheets/d/1JjNffnZHc-D8KdnLAdT09LTvoBJUVtX4ao9Wc-NM_6A",
 )
-
-# Database settings were previously read from environment variables but are not
-# used anywhere in the current codebase. Removed to avoid confusion.
