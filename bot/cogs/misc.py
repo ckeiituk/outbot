@@ -65,7 +65,7 @@ class MiscCog(commands.Cog):
             if not interaction.response.is_done():
                 await interaction.response.send_message("Ошибка при обработке команды.", ephemeral=True)
 
-    @app_commands.command(name="sync", description="Глобально синхронизировать слэш-команды и показать список")
+    @app_commands.command(name="sync", description="Синхронизировать слэш-команды для текущей гильдии и показать список")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def sync_commands(self, interaction: discord.Interaction) -> None:
         if not self._is_admin(interaction):
@@ -75,10 +75,12 @@ class MiscCog(commands.Cog):
             return
         try:
             await interaction.response.send_message("Синхронизирую слэш-команды…", ephemeral=True)
-            synced = await self.bot.tree.sync()
+            guild_id = interaction.guild.id if interaction.guild else GUILD_ID
+            guild_obj = discord.Object(id=guild_id)
+            synced = await self.bot.tree.sync(guild=guild_obj)
             names = [f"/{cmd.name}" for cmd in synced]
             txt = ", ".join(names) if names else "— команд нет"
-            await interaction.followup.send(f"Готово: {txt}", ephemeral=True)
+            await interaction.followup.send(f"Готово (гильдия {guild_id}): {txt}", ephemeral=True)
         except Exception as exc:
             await notify_admin(self.bot, f"Error in /sync: {exc}\n{traceback.format_exc()}")
             if not interaction.response.is_done():
